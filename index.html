@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineBox | Películas</title>
+    <link rel="stylesheet" href="css/estilos.css">
+</head>
+
+<body>
+
+    <!-- ENCABEZADO -->
+    <header class="navbar">
+        <div class="logo">CINE<span>VERSE</span></div>
+
+        <nav>
+            <a href="#" id="inicioLink">Inicio</a>
+            <a href="#catalogo">Películas</a>
+        </nav>
+
+    </header>
+
+    <!-- PORTADA -->
+    <section class="hero">
+        <div class="hero-content">
+            <span class="etiqueta">TU CATÁLOGO DE CINE</span>
+
+            <h1>Descubre tu próxima<br>
+                <span>película favorita.</span>
+            </h1>
+
+            <p>
+                Explora miles de películas, descubre nuevos géneros
+                y encuentra información de tus títulos favoritos.
+            </p>
+
+            <a href="#catalogo" class="btn-principal">
+                Explorar películas
+            </a>
+        </div>
+    </section>
+
+    <!-- BUSCADOR -->
+    <main class="contenedor" id="catalogo">
+
+        <section class="busqueda">
+            <div>
+                <h2>Explorar películas</h2>
+                <p>Encuentra información de tus películas favoritas.</p>
+            </div>
+
+            <form id="formBusqueda">
+                <input
+                    type="text"
+                    id="buscador"
+                    placeholder="Buscar una película..."
+                    autocomplete="off"
+                >
+                <button type="submit">Buscar</button>
+            </form>
+        </section>
+
+        <!-- FILTROS -->
+        <section class="filtros">
+            <label for="genero">Filtrar por género:</label>
+
+            <select id="genero">
+                <option value="">Todos los géneros</option>
+            </select>
+
+            <button id="btnPopulares" class="btn-secundario">
+                Ver populares
+            </button>
+        </section>
+
+        <!-- CATÁLOGO -->
+        <section class="catalogo">
+
+            <div class="titulo-catalogo">
+                <h2 id="tituloResultados">Películas populares</h2>
+                <span id="contador"></span>
+            </div>
+
+            <div id="peliculas" class="peliculas-grid">
+                <p class="mensaje">Cargando películas...</p>
+            </div>
+
+            <div class="paginacion">
+                <button id="btnMas" class="btn-principal">
+                    Cargar más películas
+                </button>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- VENTANA DE DETALLES -->
+    <div id="modal" class="modal">
+
+        <div class="modal-contenido">
+
+            <button id="cerrarModal" class="cerrar">&times;</button>
+
+            <div id="detallePelicula">
+                <p>Cargando información...</p>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- PIE DE PAGINA -->
+    <footer>
+        <div class="logo">CINE<span>VERSE</span></div>
+
+        <p>
+            Eleaborada por
+             Andrea Linette Hernandez Roque
+             Moinica Camila Lozada Montaño
+             Brandon Tafoya Salas
+             Bruno Alexis Toledano Hiedra 
+        </p>
+
+        <p class="credito">
+            Datos proporcionados por The Movie Database (TMDB).
+        </p>
+    </footer>
+
+
+    <script>
+
+    let API_KEY = "";
+    let BASE_URL = "";
+    let IMAGE_URL = "";
+    let LANGUAGE = "es-MX";
+
+    let pagina = 1;
+    let busquedaActual = "";
+    let generoActual = "";
+    let modoBusqueda = "popular";
+
+    let generos = [];
+
+    const peliculasContainer = document.getElementById("peliculas");
+    const tituloResultados = document.getElementById("tituloResultados");
+    const contador = document.getElementById("contador");
+    const btnMas = document.getElementById("btnMas");
+
+    async function iniciarPagina() {
+
+        try {
+
+            const respuesta = await fetch("json/config.json");
+
+            if (!respuesta.ok) {
+                throw new Error("No se pudo cargar config.json");
+            }
+
+            const config = await respuesta.json();
+
+            API_KEY = config.apiKey;
+            BASE_URL = config.baseUrl;
+            IMAGE_URL = config.imageUrl;
+            LANGUAGE = config.language;
+
+            if (!API_KEY || API_KEY === "") {
+                throw new Error("Debes configurar tu API Key de TMDB.");
+            }
+
+            await cargarGeneros();
+            await cargarPeliculas();
+
+        } catch (error) {
+
+            peliculasContainer.innerHTML =
+                `<p class="mensaje error">${error.message}</p>`;
+
+        }
+
+    }
+
+    async function consultarAPI(endpoint) {
+
+        const separador = endpoint.includes("?") ? "&" : "?";
+
+        const respuesta = await fetch(
+            `${BASE_URL}${endpoint}${separador}api_key=${API_KEY}&language=${LANGUAGE}`
+        );
+
+        if (!respuesta.ok) {
+            throw new Error("Error al consultar la API de películas.");
+        }
+
+        return await respuesta.json();
+
+    }
+
+    async function cargarGeneros() {
+
+        const datos = await consultarAPI("/genre/movie/list");
+
+        generos = datos.genres;
+
+        const selector = document.getElementById("genero");
+
+        generos.forEach(genero => {
+
+            const opcion = document.createElement("option");
+
+            opcion.value = genero.id;
+            opcion.textContent = genero.name;
+
+            selector.appendChild(opcion);
+
+        });
+
+    }
+
+    async function cargarPeliculas(nuevaPagina = false) {
+
+        if (!nuevaPagina) {
+            pagina = 1;
+            peliculasContainer.innerHTML =
+                '<p class="mensaje">Cargando películas...</p>';
+        } else {
+            pagina++;
+        }
+
+        let endpoint = "";
+
+        if (modoBusqueda === "buscar") {
+
+            endpoint = `/search/movie?query=${encodeURIComponent(busquedaActual)}&page=${pagina}`;
+
+        } else if (generoActual) {
+
+            endpoint = `/discover/movie?with_genres=${generoActual}&sort_by=popularity.desc&page=${pagina}`;
+
+        } else {
+
+            endpoint = `/movie/popular?page=${pagina}`;
+
+        }
+
+        try {
+
+            const datos = await consultarAPI(endpoint);
+
+            if (!nuevaPagina) {
+                peliculasContainer.innerHTML = "";
+            }
+
+            if (!datos.results || datos.results.length === 0) {
+
+                if (!nuevaPagina) {
+                    peliculasContainer.innerHTML =
+                        '<p class="mensaje">No se encontraron películas.</p>';
+                }
+
+                contador.textContent = "0 resultados";
+                btnMas.style.display = "none";
+                return;
+
+            }
+
+            datos.results.forEach(pelicula => {
+                crearTarjeta(pelicula);
+            });
+
+            contador.textContent =
+                `${datos.total_results.toLocaleString("es-MX")} resultados`;
+
+            btnMas.style.display =
+                pagina < datos.total_pages ? "inline-block" : "none";
+
+        } catch (error) {
+
+            peliculasContainer.innerHTML =
+                `<p class="mensaje error">${error.message}</p>`;
+
+        }
+
+    }
+
+    function escapar(texto) {
+
+        return String(texto ?? "").replace(/[&<>"']/g, caracter => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[caracter]);
+
+    }
+
+    function crearTarjeta(pelicula) {
+
+        const tarjeta = document.createElement("article");
+
+        tarjeta.classList.add("pelicula");
+
+        const imagen = pelicula.poster_path
+            ? IMAGE_URL + pelicula.poster_path
+            : "";
+
+        const anio = pelicula.release_date
+            ? pelicula.release_date.substring(0, 4)
+            : "Sin fecha";
+
+        const nombresGeneros = pelicula.genre_ids
+            ? pelicula.genre_ids.map(id => {
+                const genero = generos.find(g => g.id === id);
+                return genero ? genero.name : "";
+            }).filter(Boolean).slice(0, 2).join(" • ")
+            : "";
+
+        tarjeta.innerHTML = `
+
+            <div class="poster">
+
+                ${imagen
+                    ? `<img src="${imagen}" alt="${escapar(pelicula.title)}" loading="lazy">`
+                    : '<div class="sin-poster">Sin imagen disponible</div>'
+                }
+
+                <span class="calificacion">
+                    ★ ${Number(pelicula.vote_average || 0).toFixed(1)}
+                </span>
+
+            </div>
+
+            <div class="info-pelicula">
+
+                <h3>${escapar(pelicula.title)}</h3>
+
+                <span class="anio">${escapar(anio)}</span>
+
+                <p>${escapar(nombresGeneros || "Género no disponible")}</p>
+
+                <button class="btn-detalles">
+                    Ver detalles
+                </button>
+
+            </div>
+
+        `;
+
+        tarjeta.querySelector(".btn-detalles").addEventListener(
+            "click",
+            () => mostrarDetalles(pelicula.id)
+        );
+
+        peliculasContainer.appendChild(tarjeta);
+
+    }
+
+    async function mostrarDetalles(id) {
+
+        const modal = document.getElementById("modal");
+        const detalle = document.getElementById("detallePelicula");
+
+        modal.classList.add("activo");
+        document.body.style.overflow = "hidden";
+
+        detalle.innerHTML = "<p>Cargando información...</p>";
+
+        try {
+
+            const pelicula = await consultarAPI(
+                `/movie/${id}?append_to_response=credits`
+            );
+
+            const imagen = pelicula.poster_path
+                ? IMAGE_URL + pelicula.poster_path
+                : "";
+
+            const generosTexto = pelicula.genres
+                .map(g => g.name).join(", ");
+
+            const director = pelicula.credits.crew.find(
+                persona => persona.job === "Director"
+            );
+
+            const actores = pelicula.credits.cast
+                .slice(0, 5)
+                .map(actor => escapar(actor.name))
+                .join(", ");
+
+            const duracion = pelicula.runtime
+                ? pelicula.runtime + " minutos"
+                : "No disponible";
+
+            detalle.innerHTML = `
+
+                <div class="detalle-grid">
+
+                    <div class="detalle-poster">
+                        ${imagen
+                            ? `<img src="${imagen}" alt="${escapar(pelicula.title)}">`
+                            : '<div class="sin-poster">Sin imagen</div>'
+                        }
+                    </div>
+
+                    <div class="detalle-info">
+
+                        <span class="etiqueta">INFORMACIÓN DE PELÍCULA</span>
+
+                        <h2>${escapar(pelicula.title)}</h2>
+
+                        <div class="detalle-datos">
+
+                            <span>
+                                ${pelicula.release_date
+                                    ? escapar(pelicula.release_date.substring(0, 4))
+                                    : "Sin fecha"}
+                            </span>
+
+                            <span>★ ${Number(pelicula.vote_average || 0).toFixed(1)}/10</span>
+
+                            <span>${duracion}</span>
+
+                        </div>
+
+                        <h4>Géneros</h4>
+                        <p>${escapar(generosTexto || "No disponible")}</p>
+
+                        <h4>Director</h4>
+                        <p>${director ? escapar(director.name) : "No disponible"}</p>
+
+                        <h4>Reparto principal</h4>
+                        <p>${actores || "No disponible"}</p>
+
+                        <h4>Sinopsis</h4>
+                        <p>${escapar(pelicula.overview || "No hay sinopsis disponible.")}</p>
+
+                    </div>
+
+                </div>
+
+            `;
+
+        } catch (error) {
+
+            detalle.innerHTML =
+                `<p class="mensaje error">${error.message}</p>`;
+
+        }
+
+    }
+
+    document.getElementById("formBusqueda").addEventListener(
+        "submit",
+        function(event) {
+
+            event.preventDefault();
+
+            const texto = document.getElementById("buscador")
+                .value.trim();
+
+            if (!texto) return;
+
+            busquedaActual = texto;
+            generoActual = "";
+            modoBusqueda = "buscar";
+
+            document.getElementById("genero").value = "";
+
+            tituloResultados.textContent =
+                `Resultados para: ${texto}`;
+
+            cargarPeliculas();
+
+        }
+    );
+
+
+    document.getElementById("genero").addEventListener(
+        "change",
+        function() {
+
+            generoActual = this.value;
+            busquedaActual = "";
+
+            document.getElementById("buscador").value = "";
+
+            modoBusqueda = "popular";
+
+            const seleccionado = generos.find(
+                g => String(g.id) === this.value
+            );
+
+            tituloResultados.textContent = seleccionado
+                ? `Películas de ${seleccionado.name}`
+                : "Películas populares";
+
+            cargarPeliculas();
+
+        }
+    );
+
+    document.getElementById("btnPopulares").addEventListener(
+        "click",
+        function() {
+
+            modoBusqueda = "popular";
+            generoActual = "";
+            busquedaActual = "";
+
+            document.getElementById("genero").value = "";
+            document.getElementById("buscador").value = "";
+
+            tituloResultados.textContent = "Películas populares";
+
+            cargarPeliculas();
+
+        }
+    );
+
+    document.getElementById("inicioLink").addEventListener(
+        "click",
+        function(event) {
+
+            event.preventDefault();
+
+            document.getElementById("btnPopulares").click();
+
+            window.scrollTo({
+                top: 0,
+                behavior: "smooth"
+            });
+
+        }
+    );
+
+    btnMas.addEventListener("click", () => {
+        cargarPeliculas(true);
+    });
+
+    function cerrarModal() {
+
+        document.getElementById("modal").classList.remove("activo");
+        document.body.style.overflow = "auto";
+
+    }
+
+    document.getElementById("cerrarModal").addEventListener(
+        "click", cerrarModal
+    );
+
+    document.getElementById("modal").addEventListener(
+        "click",
+        function(event) {
+
+            if (event.target === this) {
+                cerrarModal();
+            }
+
+        }
+    );
+
+    document.addEventListener("keydown", function(event) {
+
+        if (event.key === "Escape") {
+            cerrarModal();
+        }
+
+    });
+
+    iniciarPagina();
+
+    </script>
+
+</body>
+</html>

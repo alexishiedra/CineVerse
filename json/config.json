@@ -1,0 +1,6 @@
+{
+  "apiKey": "844b7eaa996339c05dbb6939342ad8f8",
+  "baseUrl": "https://api.themoviedb.org/3",
+  "imageUrl": "https://image.tmdb.org/t/p/w500",
+  "language": "es-MX"
+}
